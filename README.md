@@ -46,6 +46,3 @@ The dataset used for this project is the California housing dataset. You can dow
 - The Linear Regression model is trained and evaluated.
 - The Random Forest Regressor is trained, and hyperparameter tuning is performed.
 - Model performances are compared.
-
-## License
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
