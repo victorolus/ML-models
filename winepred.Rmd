@@ -1,0 +1,222 @@
+---
+title: "ML2"
+author: "victor"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+loading the libraries and data
+```{r message=FALSE, warning=FALSE}
+# Install packages if not installed
+install.packages(c("ggplot2", "dplyr", "corrplot", "glmnet", "randomForest", "nnet", "caret", "GGally", "rpart", "rpart.plot"))
+
+# Load libraries
+library(ggplot2)
+library(dplyr)
+library(corrplot)
+library(glmnet)
+library(randomForest)
+library(nnet)
+library(caret)
+library(GGally)
+library(rpart)
+library(rpart.plot)
+
+```
+load the data 
+```{r}
+
+# Load data directly from GitHub
+red_wine_url <- "https://raw.githubusercontent.com/ccscaiado/MLRepo/main/Assignment%202%20Datasets/Wine%20Quality/winequality-red.csv"
+white_wine_url <- "https://raw.githubusercontent.com/ccscaiado/MLRepo/main/Assignment%202%20Datasets/Wine%20Quality/winequality-white.csv"
+
+red_wine <- read.csv(red_wine_url, sep=";")
+white_wine <- read.csv(white_wine_url, sep=";")
+
+# Add a type column to distinguish red and white wine
+red_wine$type <- "red"
+white_wine$type <- "white"
+
+# Combine both datasets
+wine_data <- rbind(red_wine, white_wine)
+
+# Preview the data
+head(wine_data)
+str(wine_data)
+summary(wine_data)
+
+```
+
+
+data cleaning - checking for missing data
+```{r}
+colSums(is.na(wine_data))
+```
+
+Convert Data Types:
+Ensure all variables are in the correct data type:
+```{r}
+wine_data$type <- as.factor(wine_data$type)
+
+```
+
+Check for Duplicates:
+```{r}
+sum(duplicated(wine_data))
+```
+
+Removing duplicates:
+```{r}
+wine_data <- wine_data[!duplicated(wine_data), ]
+```
+
+
+Exploratory Data Analysis
+Visualize Distribution of Quality Scores:
+```{r}
+ggplot(wine_data, aes(x=quality, fill=type)) +
+  geom_bar() +
+  labs(title="Distribution of Wine Quality", x="Quality", y="Count")
+```
+
+Correlation Heatmap:
+```{r}
+cor_data <- cor(wine_data %>% select(-type))
+corrplot(cor_data, method="color", type="upper", tl.col="black", tl.srt=45)
+```
+correlation table:
+```{r}
+cor(wine_data %>% select(-type))
+```
+
+
+
+Pair Plot:
+```{r message=FALSE}
+wine_data$quality <- as.factor(wine_data$quality)
+ggpairs(wine_data, columns = c(1,2,7,8,11,12), ggplot2::aes(color = type))
+```
+
+4. Modeling
+
+Split Data:
+
+```{r}
+set.seed(123)
+train_index <- createDataPartition(wine_data$quality, p = 0.6, list = FALSE)
+train_data <- wine_data[train_index, ]
+test_data <- wine_data[-train_index, ]
+```
+
+Option 1.2: CART with Pruning
+```{r, fig.height=6, fig.width= 10}
+# Fit a CART Model
+cart_model <- rpart(quality ~ ., data=train_data, method="class")
+  rpart.control(minsplit = 20, minbucket = 3, maxdepth = 10, cp=0.01)
+
+plot(cart_model)
+print(cart_model, digits = 3)
+text(cart_model, digits=3)
+printcp(cart_model)
+  
+  
+  
+rpart.plot(cart_model)
+
+
+# Predict
+cart_pred <- predict(pruned_model, test_data, type="class")
+confusionMatrix(cart_pred, test_data$quality)
+
+plot(cart_model)
+text(cart_model, digits=3)
+printcp(cart_model)
+```
+
+```{r}
+ ggplot()+
+   xlab("alcohol")+
+   ylab("quality")+
+   labs(colour="")+
+   scale_color_manual(values=c("firebrick","dodgerblue4"),labels=c("red whine","white wine"))+
+   geom_point(data=train_data, aes(x=alcohol,y=quality,colour=factor(type)))+
+   theme_bw()
+```
+
+
+Option 2.1: Random Forest
+```{r}
+rf_model <- randomForest(quality ~ ., data=train_data, ntree=300)
+print(rf_model)
+rf_pred <- predict(rf_model, test_data, "class")
+
+confusionMatrix(rf_pred, test_data$quality)
+plot(rf_model)
+```
+
+5. Model Comparison
+
+Evaluate using accuracy, precision, recall, and F1 score:
+```{r}
+# For CART
+confusionMatrix(cart_pred, test_data$quality)
+```
+
+
+```{r}
+# For Random Forest
+confusionMatrix(rf_pred, test_data$quality)
+
+```
+
+compare using visualization:
+```{r}
+library(caret)
+
+# Assuming 'cart_pred' and 'rf_pred' are your predictions
+# Ensure test_data$quality is a factor
+test_data$quality <- factor(test_data$quality)
+
+cart_cm <- confusionMatrix(cart_pred, test_data$quality)
+rf_cm <- confusionMatrix(rf_pred, test_data$quality)
+
+# Extract accuracy
+results <- data.frame(
+  Model = c("CART", "Random Forest"),
+  Accuracy = c(cart_cm$overall["Accuracy"], rf_cm$overall["Accuracy"])
+)
+
+print(results)
+
+
+ggplot(results, aes(x=Model, y=Accuracy, fill=Model)) +
+  geom_bar(stat="identity") +
+  labs(title="Model Accuracy Comparison")
+
+```
+
